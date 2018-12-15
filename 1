@@ -1,6 +1,6 @@
 #include <Adafruit_NeoPixel.h>    //NeoPixel Bibliothek einbinden
 
-#define PIN 6                     //ws2812b ist an Pin...
+#define PIN 6                       //ws2812b ist an Pin...
 #define numPixel 12                  //LED in Reihe angeschlossen
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(numPixel, PIN, NEO_GRB + NEO_KHZ800);
@@ -10,7 +10,7 @@ int mode = 0;                    //Variable für mode, start ist 1
 int pause = 100;                 //Variable für kurze Pausen (Animation4)
 int langpause = 2000;            //Variable für lange Pausen (Animation4)
 int wait = 0;                     //wait Variable für void colorWipe
-volatile bool interuptrigger = false;
+volatile bool interuptrigger = false;    //Flag beim start nicht gesetzt
 
 
 
@@ -24,11 +24,11 @@ void setup()
    pinMode(tasterPin, INPUT);           // tasterPin ist ein INPUT
     attachInterrupt(1, taster, FALLING); // Interrupt taster auslösen, bei Loslassen (1=Pin3) (High to Low)
   strip.begin();
-  strip.show();                 // Initialize all pixels to 'off'
+  strip.show();                         // Alle Pixel aus
 
 
   pixels = new Adafruit_NeoPixel(numPixel, PIN, colorOrder);
-  pixels->begin(); // This initializes the NeoPixel library.
+  pixels->begin();                     // initialisiere NeoPixel library.
 
  
  
@@ -54,7 +54,6 @@ interuptrigger = false; //interrupt-Flag= aus
     for (int i = 0; i < numPixel; i++) {
       pixels->setPixelColor(i, pixels->Color(0, 255, 0)); // grün
       pixels->show();               // an LED senden
-      delay(pause);                 // Variable "Pause" lang warten
     }
   }
 //==================MODE 2 alles rot===========================
@@ -63,7 +62,6 @@ interuptrigger = false; //interrupt-Flag= aus
     for (int i = 0; i < numPixel; i++) {
       pixels->setPixelColor(i, pixels->Color(255, 0, 0)); // rot
       pixels->show();           // an LED senden
-      delay(pause);             // Variable "Pause" lang warten
     }
   }
 //==================MODE 3 alles rot/grün/cyan===========================
@@ -119,6 +117,8 @@ interuptrigger = false; //interrupt-Flag= aus
 
 
 //==================MODE 5 Regenbogenwabern===========================
+//(Der Böse mode)
+
   else if (mode == 5)
   {
    rainbowCycle(1);
@@ -145,11 +145,11 @@ void interruptedDelay(int time)
 {
     for (int i = 0; i <= time; i += minDelayStep)
     {
-        if (interuptrigger)
+        if (interuptrigger)         //...wenn Flag= true...
         {
-            return;
+            return;                 //zurück zu beginn void loop?
         }
-        delay(minDelayStep);
+        delay(minDelayStep);        //Delay zum Taster entprellen (?)
     }
 }
 
@@ -157,7 +157,7 @@ void taster()
 {
 
   mode++;
- interuptrigger = true;
+ interuptrigger = true;          //flag "interuptrigger" setzen
 }
 
 
@@ -171,7 +171,7 @@ void colorWipe(uint32_t c, uint8_t wait) {
 }
 
 
-//Für Mode 5
+//Für Mode 5 (bekannt unter dem Namen: der Böse Mode)
 void rainbowCycle(uint8_t wait) {
   uint16_t i, j;
 
