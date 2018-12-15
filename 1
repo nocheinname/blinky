@@ -45,7 +45,6 @@ interuptrigger = false; //interrupt-Flag= aus
     for (int i = 0; i < numPixel; i++) {    //an Pixel für Pixel senden, bis alle erreicht
       pixels->setPixelColor(i, pixels->Color(0, 0, 0));   // alles aus
       pixels->show(); // an LED senden
-      delay(pause); // Variable "Pause" lang warten
     }
   }
 //==================MODE 1 alles grün===========================
@@ -84,7 +83,7 @@ interuptrigger = false; //interrupt-Flag= aus
     pixels->setPixelColor(4, pixels->Color(0, 255, 0)); // Pixel5 B leuchtet in der Farbe Grün
     pixels->setPixelColor(5, pixels->Color(0, 255, 0)); // Pixel6 B leuchtet in der Farbe Grün
     pixels->show(); // Durchführen der Pixel-Ansteuerung
-    delay (langpause); // Pause, in dieser Zeit wird nichts verändert.
+    delay (langpause); // delay austauchen gegen blokadefreies zeug
     
     pixels->setPixelColor(6, pixels->Color(255, 0, 255)); // Pixel7 Ö leuchtet in der Farbe pink
     pixels->setPixelColor(7, pixels->Color(255, 0, 255)); // Pixel8 Ö leuchtet in der Farbe pink
@@ -93,7 +92,7 @@ interuptrigger = false; //interrupt-Flag= aus
     pixels->setPixelColor(10, pixels->Color(255, 0, 255)); // Pixel11 Ö leuchtet in der Farbe pink
     pixels->setPixelColor(11, pixels->Color(255, 0, 255)); // Pixel12 Ö leuchtet in der Farbe pink
     pixels->show(); // Durchführen der Pixel-Ansteuerung
-    delay (langpause); // Pause, in dieser Zeit wird nichts verändert.
+    delay (langpause); // delay austauchen gegen blokadefreies zeug
 
 
     
@@ -111,7 +110,7 @@ interuptrigger = false; //interrupt-Flag= aus
     pixels->setPixelColor(10, pixels->Color(0, 0, 0));
     pixels->setPixelColor(11, pixels->Color(0, 0, 0));
     pixels->show(); // Durchführen der Pixel-Ansteuerung
-    delay (langpause); // Pause, die LEDs bleiben in dieser Zeit aus
+    delay (langpause); // delay austauchen gegen blokadefreies zeug
 
   }
 
@@ -149,11 +148,11 @@ void interruptedDelay(int time)
         {
             return;                 //zurück zu beginn void loop?
         }
-        delay(minDelayStep);        //Delay zum Taster entprellen (?)
+        delay(minDelayStep);        //...sonst Delay zum Taster entprellen (?)
     }
 }
 
-void taster()
+void taster()                      //interrupt bei tasterdruck
 {
 
   mode++;
