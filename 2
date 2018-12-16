@@ -1,0 +1,221 @@
+#include <Adafruit_NeoPixel.h> //NeoPixel Bibliothek einbinden
+
+#define PIN 6       //ws2812b ist an Pin...
+#define numPixel 51 //LED in Reihe angeschlossen
+
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(numPixel, PIN, NEO_GRB + NEO_KHZ800);
+const int minDelayStep = 20;
+const int tasterPin = 3;              // Taster an PIN 3
+int mode = 0;                         //Variable für mode, start ist 1
+int pause = 100;                      //Variable für kurze Pausen (Animation4)
+int langpause = 2000;                 //Variable für lange Pausen (Animation4)
+int wait = 0;                         //wait Variable für void colorWipe
+volatile bool interuptrigger = false; //Flag beim start nicht gesetzt
+
+Adafruit_NeoPixel *pixels;
+uint8_t colorOrder = 0x52; //or just use NEO_GBR
+
+uint32_t rainbowColors[numPixel];
+
+void setup()
+{
+  pinMode(tasterPin, INPUT);           // tasterPin ist ein INPUT
+  attachInterrupt(1, taster, FALLING); // Interrupt taster auslösen, bei Loslassen (1=Pin3) (High to Low)
+  strip.begin();
+  strip.show(); // Alle Pixel aus
+
+  // Berechne die Farben für den Regenbogen bei der Anzahl der Pixel einmal vor und verwende dies dann später
+for (int i = 0; i < strip.numPixels(); i++)
+  {
+    rainbowColors[i] = Wheel(((i * 256 / strip.numPixels())));
+  }
+}
+
+void loop()
+{
+  interuptrigger = false; //interrupt-Flag= aus
+
+  //==================MODE 0===========================
+  if (mode == 0) //...wenn mode 0...
+  {
+    for (int i = 0; i < numPixel; i++)
+    {                                                 //an Pixel für Pixel senden, bis alle erreicht
+      strip.setPixelColor(i, strip.Color(0, 0, 0)); // alles aus
+    }
+    // Erst setzen, dann raus schicken (show())
+    strip.show(); // an LED senden
+  }
+  //==================MODE 1 alles grün===========================
+  else if (mode == 1) //sonst wenn mode 2
+  {
+    for (int i = 0; i < numPixel; i++)
+    {
+      if (interuptrigger)
+    {
+      return;
+    }
+      strip.setPixelColor(i, strip.Color(0, 255, 0)); // grün
+    }
+    strip.show(); // an LED senden
+  }
+  //==================MODE 2 alles rot===========================
+  else if (mode == 2)
+  {
+    for (int i = 0; i < numPixel; i++)
+    {
+      if (interuptrigger)
+    {
+      return;
+    }
+      strip.setPixelColor(i, strip.Color(255, 0, 0)); // rot
+    }
+    strip.show(); // an LED senden
+  }
+  //==================MODE 3 alles rot/grün/cyan===========================
+  else if (mode == 3)
+  {
+    if (interuptrigger)
+    {
+      return;
+    }
+    colorWipe(strip.Color(255, 0, 0), 10);   // Red, alle Pixel
+    colorWipe(strip.Color(0, 255, 0), 10);   // Green, alle Pixel
+    colorWipe(strip.Color(0, 255, 255), 10); // cyan, alle Pixel
+  }
+  //==================MODE 4 (1-6grün) (7-12pink) aus===========================
+  else if (mode == 4)
+  {
+    for (int i = 0; i < 6, i++;)
+    {
+      if (interuptrigger)
+    {
+      return;
+    }
+      strip.setPixelColor(i, strip.Color(0, 255, 0)); // Pixel1 B leuchtet in der Farbe Grün
+    }
+    strip.show();               // Durchführen der Pixel-Ansteuerung
+    interruptedDelay(langpause); // delay austauchen gegen blokadefreies zeug
+
+    for (int i = 6; i < 12, i++;)
+    {
+      if (interuptrigger)
+    {
+      return;
+    }
+      strip.setPixelColor(i, strip.Color(255, 0, 255)); // Pixel7 Ö leuchtet in der Farbe pink
+    }
+    strip.show();               // Durchführen der Pixel-Ansteuerung
+    interruptedDelay(langpause); // delay austauchen gegen blokadefreies zeug
+
+    // Zurücksetzen aller Pixelfarben auf Stufe "0" (aus)
+    for (int i = 0; i < numPixel, i++;)
+    {
+      if (interuptrigger)
+    {
+      return;
+    }
+      strip.setPixelColor(i, strip.Color(0, 0, 0)); // Pixel7 Ö leuchtet in der Farbe pink
+    }
+    strip.show();               // Durchführen der Pixel-Ansteuerung
+    interruptedDelay(langpause); // delay austauchen gegen blokadefreies zeug
+  }
+
+  //==================MODE 5 Regenbogenwabern===========================
+  //(Der Böse mode)
+  else if (mode == 5)
+  {
+    rainbowCycle(1);
+  }
+
+  //==================MODE 6 Gelb===========================
+  else if (mode == 6)
+  {
+    if (interuptrigger)
+    {
+      return;
+    }
+    colorWipe(strip.Color(255, 255, 0), 50); // gelb, alle Pixel
+  }
+  //==================ENDE MODE===========================
+  else
+  {
+    // Wenn wir keinen Modus haben, dann setzen wir den wieder auf 0
+    mode = 0;
+  }
+}
+
+//================INTERRUPT===========================
+void interruptedDelay(int time)
+{
+  for (int i = 0; i <= time; i += minDelayStep)
+  {
+    if (interuptrigger) //...wenn Flag= true...
+    {
+      return; //zurück zu beginn void loop? => Nein, nur nicht mehr unterbrechen, dann geht ganz normal weiter
+    }
+    delay(minDelayStep); //...sonst Delay zum Taster entprellen (?)
+    // => Weiß nicht ob das ein realles problem ist,
+    // aber hier schläft er einfach nur in kurzen schritten und
+    // schaut zwischen drin ob der taster angestoßen wurde
+  }
+}
+
+void taster() //interrupt bei tasterdruck
+{
+  mode++;
+  interuptrigger = true; //flag "interuptrigger" setzen
+}
+
+//colorWipe, zählt Pixel hoch und gibt allen gleichen Farbwert
+void colorWipe(uint32_t c, uint8_t wait)
+{
+  for (uint16_t i = 0; i < strip.numPixels(); i++)
+  {
+    if (interuptrigger)
+    {
+      return;
+    }
+    strip.setPixelColor(i, c);
+    strip.show();
+    interruptedDelay(wait);
+  }
+}
+
+//Für Mode 5 (bekannt unter dem Namen: der Böse Mode)
+void rainbowCycle(uint8_t wait)
+{
+  uint16_t i, j;
+
+  for (j = 0; j < 256 * 1; j++)
+  {
+    if (interuptrigger)
+    {
+      return;
+    }
+    // 1 cycles of all colors on wheel
+    for (i = 0; i < strip.numPixels(); i++)
+    {
+      strip.setPixelColor(i, rainbowCycle[(i + j) & 255]);
+    }
+    strip.show();
+    interruptedDelay(wait); // Brauchst jetzt wahrscheinlich, da wenn es vorberechnet ist, deutlich schneller gehen sollte
+  }
+}
+
+// Input a value 0 to 255 to get a color value.
+// The colours are a transition r - g - b - back to r.
+uint32_t Wheel(byte WheelPos)
+{
+  WheelPos = 255 - WheelPos;
+  if (WheelPos < 85)
+  {
+    return strip.Color(255 - WheelPos * 3, 0, WheelPos * 3);
+  }
+  if (WheelPos < 170)
+  {
+    WheelPos -= 85;
+    return strip.Color(0, WheelPos * 3, 255 - WheelPos * 3);
+  }
+  WheelPos -= 170;
+  return strip.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+}
