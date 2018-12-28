@@ -1,0 +1,640 @@
+#include <Adafruit_NeoPixel.h> //NeoPixel Bibliothek einbinden
+
+#define PIN 6       //ws2812b ist an Pin...
+#define numPixel 51 //LED in Reihe angeschlossen
+
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(numPixel, PIN, NEO_GRB + NEO_KHZ800);
+
+const int tasterPin = 3;              // Taster an PIN 3
+
+const int durationForRandom = 2000;
+
+int mode = 0;                         //Variable für mode, start ist 0
+
+volatile bool interupTrigger = false;
+
+volatile bool isTasterPressed = false;
+
+volatile unsigned long timeTriggered;
+
+const uint8_t PROGMEM gamma8[] = {
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  1,  1,  1,
+    1,  1,  1,  1,  1,  1,  1,  1,  1,  2,  2,  2,  2,  2,  2,  2,
+    2,  3,  3,  3,  3,  3,  3,  3,  4,  4,  4,  4,  4,  5,  5,  5,
+    5,  6,  6,  6,  6,  7,  7,  7,  7,  8,  8,  8,  9,  9,  9, 10,
+    10, 10, 11, 11, 11, 12, 12, 13, 13, 13, 14, 14, 15, 15, 16, 16,
+    17, 17, 18, 18, 19, 19, 20, 20, 21, 21, 22, 22, 23, 24, 24, 25,
+    25, 26, 27, 27, 28, 29, 29, 30, 31, 32, 32, 33, 34, 35, 35, 36,
+    37, 38, 39, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 50,
+    51, 52, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 66, 67, 68,
+    69, 70, 72, 73, 74, 75, 77, 78, 79, 81, 82, 83, 85, 86, 87, 89,
+    90, 92, 93, 95, 96, 98, 99,101,102,104,105,107,109,110,112,114,
+    115,117,119,120,122,124,126,127,129,131,133,135,137,138,140,142,
+    144,146,148,150,152,154,156,158,160,162,164,167,169,171,173,175,
+    177,180,182,184,186,189,191,193,196,198,200,203,205,208,210,213,
+    215,218,220,223,225,228,231,233,236,239,241,244,247,249,252,255 };
+
+const byte maxLedsPerCm = 3;
+const byte cm2pixel[][maxLedsPerCm] = {
+  // B
+  {1,2,3},
+  {4,6,8},
+  {5,7}, 
+  // Ö
+  {10, 15},
+  {9,11},
+  {12,14},
+  {13,16},
+  // L
+  {17,18,19},
+  {20},
+  {21},
+  // T
+  {25},
+  {22,23,24},
+  {26},
+  // I
+  {27,28,29},
+  // H
+  {30,31},
+  {32},
+  {33},
+  {34,35},
+  // A
+  {36},
+  {37},
+  {38,40},
+  {39},
+  {41},
+  // L
+   {42,43,44},
+   {45},
+   {46},
+   // L
+   {47,48,49},
+   {50},
+   {51}
+};
+
+Adafruit_NeoPixel *pixels;
+uint8_t colorOrder = 0x52; //or just use NEO_GBR
+
+void setup()
+{
+  pinMode(tasterPin, INPUT);           // tasterPin ist ein INPUT
+  attachInterrupt(1, tasterHandler, CHANGE); // Interrupt taster auslösen, bei Loslassen (1=Pin3) (High to Low)
+  strip.begin();
+  strip.show(); // Alle Pixel aus
+}
+
+void loop()
+{
+  interupTrigger = false; //interrupt-Flag= aus
+  if (isTasterPressed) {
+    if (millis() - timeTriggered > durationForRandom) {
+      strip.fill(strip.Color(255,0,0), 0, numPixel);
+      strip.show();
+      interruptedDelay(100);
+      strip.fill(strip.Color(0,0,0), 0, numPixel);
+      strip.show();
+      interruptedDelay(250);
+    } else if (millis() - timeTriggered > 500) {
+      strip.fill(strip.Color(255,255,255), 0, numPixel);
+      strip.show();
+      interruptedDelay(250);
+      strip.fill(strip.Color(0,0,0), 0, numPixel);
+      strip.show();
+      interruptedDelay(500);
+    }
+    return;
+  }
+
+  // Lösche alle bisherigen LEDs
+  strip.fill(strip.Color(0,0,0), 0, numPixel);
+
+  int showedMode = mode;
+  if (mode == -1) {
+    showedMode = random(1, 12);
+  }
+
+  switch(showedMode) {
+    // Aus
+    case 0:
+      strip.clear();
+      strip.show(); // an LED senden
+      break;
+    // B-Ö-L-T-I-HALL Amber
+    case 1:
+      singleLetters();
+      break;
+    // Regebogen mit rein horizontaler Bewerung
+    case 2:
+      rainbowWithCm();
+      break;
+    // Feuer
+    case 3:
+      Fire(30, 90, 17); // CoolDown, Zünden, speedDelay
+      break;
+    // Fade In Out
+    case 4:
+      RGBLoop();
+      break;
+    // Meteor
+    case 5:
+        meteorRain(0xff, 0x80, 0, 15, 68, true, 30); //Farbe (HEX), Größe, Geschw., delay
+      break;
+    case 6:
+      RunningLights(0x90, 0x0, 0xff, 90); //R,G,B, delay
+      break;
+    // Regenbogen
+    case 7:
+      rainbowCycle(20);
+      break;
+    // Amber, alle Pixel
+    case 8:
+      colorWipe(strip.Color(255, 100, 0), 10); 
+      break;
+    // Pink, alle Pixel
+    case 9:
+      colorWipe(strip.Color(255, 0, 100), 10); 
+      break;
+    // Petrol, alle Pixel
+    case 10:
+      colorWipe(strip.Color(0, 150, 255), 10); 
+      break;
+    // KITT
+    case 11:
+      kitt(0xff, 0, 0, 3, 10, 50);
+      break;
+    default:
+      mode = 0;
+  }
+}
+
+void interruptedDelay(int time)
+{
+  unsigned long startTime = millis();
+  while (true) {
+    if (interupTrigger || millis() - startTime >= time) return;
+    delay(4);
+  }
+  return;
+}
+
+//================INTERRUPT===========================
+void tasterHandler() {
+  interupTrigger = true; //flag "interupTrigger" setzen
+  if (!isTasterPressed) {
+    isTasterPressed = true;
+    timeTriggered = millis();
+  } else {
+    if (millis() - timeTriggered > durationForRandom) {
+      mode = -1;
+    } else {
+      mode++;    
+    }
+    isTasterPressed = false;
+  }
+}
+//================INTERRUPT ENDE===========================
+
+//=======================colorWipe=============================
+//colorWipe, zählt Pixel hoch und gibt allen gleichen Farbwert
+void colorWipe(uint32_t c, uint8_t wait)
+{
+  for (uint16_t i = 0; i < strip.numPixels(); i++)
+  {
+    if (interupTrigger)
+    {
+      return;
+    }
+    strip.setPixelColor(i, c);
+    strip.show();
+    interruptedDelay(wait);
+  }
+}
+//=======================colorWipe ENDE=========================
+
+//================================setAll=====================
+void setAll(byte red, byte green, byte blue)
+{
+  for (int i = 0; i < numPixel; i++ ) {
+    setPixel(i, red, green, blue);
+  }
+  strip.show();
+}
+//================================setAll ENDE=====================
+
+//================================setPixel========================
+void setPixel(int Pixel, byte red, byte green, byte blue) {
+  strip.setPixelColor(Pixel, strip.Color(red, green, blue));
+}
+//================================setPixel ENDE====================
+
+void rainbowWithCm() {
+  const byte numCmSteps = sizeof(cm2pixel) / maxLedsPerCm;
+  for (int wheelPos = 0; wheelPos < 256; wheelPos++) {
+    for (byte i = 0; i < numCmSteps; i++) {
+      if (interupTrigger) {
+        return;
+      }
+      byte* c = Wheel(((255 - i - wheelPos) * 255 / numCmSteps) & 255);
+      for (byte j = 0; j < maxLedsPerCm; j++) {
+        if (cm2pixel[i][j] != 0) {
+          strip.setPixelColor(cm2pixel[i][j] - 1, *c, *(c + 1), *(c + 2));
+          // strip.setPixelColor(cm2pixel[i][j] - 1, pgm_read_byte(&gamma8[*c]), pgm_read_byte(&gamma8[*(c + 1)]), pgm_read_byte(&gamma8[*(c + 2)]));
+        }
+      }
+    }
+    strip.show(); // an LED senden
+    interruptedDelay(50);
+  }
+}
+
+void singleLetters() {
+      for (int i = 0; i < 8; i++)
+    { if (interupTrigger)
+      {
+        return;
+      }
+      strip.setPixelColor(i, strip.Color(255, 90, 0)); // Amber an B
+    }
+    strip.show(); // an LED senden
+    delay(400);
+
+    for (int i = 0; i < 16; i++)
+    { if (interupTrigger)
+      {
+        return;
+      }
+      strip.setPixelColor(i, strip.Color(255, 90, 0)); // Amber an BÖ
+    }
+    strip.show(); // an LED senden
+    interruptedDelay(400);
+
+    for (int i = 0; i < 21; i++)
+    {
+      if (interupTrigger)
+      {
+        return;
+      }
+      strip.setPixelColor(i, strip.Color(255, 90, 0)); // Amber an BÖL
+    }
+    // Erst setzen, dann raus schicken (show())
+    strip.show(); // an LED senden
+    delay(400);
+
+    for (int i = 0; i < 26; i++)
+    {
+      if (interupTrigger)
+      {
+        return;
+      }
+      strip.setPixelColor(i, strip.Color(255, 90, 0)); // Amber an BÖLT
+    }
+    // Erst setzen, dann raus schicken (show())
+    strip.show(); // an LED senden
+    interruptedDelay(400);
+
+    for (int i = 0; i < 29; i++)
+    {
+      if (interupTrigger)
+      {
+        return;
+      }
+      strip.setPixelColor(i, strip.Color(255, 90, 0)); // Amber an BÖLTI
+    }
+    // Erst setzen, dann raus schicken (show())
+    strip.show(); // an LED senden
+    delay(600);
+
+    for (int i = 0; i < 51; i++)
+    {
+      if (interupTrigger)
+      {
+        return;
+      }
+      strip.setPixelColor(i, strip.Color(255, 90, 0 ));  // Amber an BOELTIHALL
+    }
+    // Erst setzen, dann raus schicken (show())
+    strip.show(); // an LED senden
+    interruptedDelay(3000);
+
+    colorWipe(strip.Color(45, 10, 0), 10);   // Dunkel, alle Pixel
+    interruptedDelay(2000);
+}
+
+//===============================RunningLight=====================
+void RunningLights(byte red, byte green, byte blue, int WaveDelay) {
+  int Position = 0;
+  for (int j = 0; j < numPixel * 2; j++)
+  {
+    if (interupTrigger)
+    {
+      return;
+    }
+    Position++; // = 0; //Position + Rate;
+    for (int i = 0; i < numPixel; i++) {
+      if (interupTrigger)
+      {
+        return;
+      }
+      // sine wave, 3 offset waves make a rainbow!
+      //float level = sin(i+Position) * 127 + 128;
+      //setPixel(i,level,0,0);
+      //float level = sin(i+Position) * 127 + 128;
+      setPixel(i, ((sin(i + Position) * 127 + 128) / 255)*red,
+               ((sin(i + Position) * 127 + 128) / 255)*green,
+               ((sin(i + Position) * 127 + 128) / 255)*blue);
+    }
+    strip.show();
+    interruptedDelay(WaveDelay);
+  }
+}
+//===============================RunningLight ENDE=====================
+//===============================FIRE==================================
+void Fire(int Cooling, int Sparking, int speedDelay) {
+  static byte heat[numPixel];
+  int cooldown;
+
+  // Step 1.  Cool down every cell a little
+  for ( int i = 0; i < numPixel; i++) {
+    if (interupTrigger)
+    {
+      return;
+    }
+    cooldown = random(0, ((Cooling * 10) / numPixel) + 2);
+    if (cooldown > heat[i]) {
+      heat[i] = 0;
+    } else {
+      heat[i] = heat[i] - cooldown;
+    }
+  }
+  // Step 2.  Heat from each cell drifts 'up' and diffuses a little
+
+  for ( int k = numPixel - 1; k >= 2; k--) {
+    if (interupTrigger)
+    {
+      return;
+    }
+
+    heat[k] = (heat[k - 1] + heat[k - 2] + heat[k - 2]) / 3;
+  }
+  // Step 3.  Randomly ignite new 'sparks' near the bottom
+  if ( random(255) < Sparking ) {
+    int y = random(7);
+    heat[y] = heat[y] + random(160, 255);
+    //heat[y] = random(160,255);
+  }
+  // Step 4.  Convert heat to LED colors
+  for ( int j = 0; j < numPixel; j++) {
+    setPixelHeatColor(j, heat[j] );
+  }
+  strip.show();
+  interruptedDelay(speedDelay);
+}
+
+void setPixelHeatColor (int Pixel, byte temperature) {
+
+  // Scale 'heat' down from 0-255 to 0-191
+  byte t192 = round((temperature / 255.0) * 191);
+
+  // calculate ramp up from
+  byte heatramp = t192 & 0x3F; // 0..63
+  heatramp <<= 2; // scale up to 0..252
+
+  // figure out which third of the spectrum we're in:
+  if ( t192 > 0x80) {                    // hottest
+    setPixel(Pixel, 255, 255, heatramp);
+  } else if ( t192 > 0x40 ) {            // middle
+    setPixel(Pixel, 255, heatramp, 0);
+  } else {                               // coolest
+    setPixel(Pixel, heatramp, 0, 0);
+  }
+}
+
+//==========================Meteor==========================
+void meteorRain(byte red, byte green, byte blue, byte meteorSize, byte meteorTrailDecay, boolean meteorRandomDecay, int speedDelay) {
+
+  setAll(0, 0, 0);
+  for (int i = 0; i < numPixel + numPixel; i++) {
+    if (interupTrigger)
+    {
+      return;
+    }
+
+    // fade brightness all LEDs one step
+    for (int j = 0; j < numPixel; j++) {
+      if ( (!meteorRandomDecay) || (random(10) > 5) ) {
+        fadeToBlack(j, meteorTrailDecay );
+      }
+    }
+
+    // draw meteor
+    for (int j = 0; j < meteorSize; j++) {
+      if ( ( i - j < numPixel) && (i - j >= 0) ) {
+        setPixel(i - j, red, green, blue);
+      }
+    }
+    strip.show();
+    interruptedDelay(speedDelay);
+  }
+}
+void fadeToBlack(int ledNo, byte fadeValue) {
+  if (interupTrigger)
+  {
+    return;
+  }
+
+  uint32_t oldColor;
+  uint8_t r, g, b;
+  int value;
+
+  oldColor = strip.getPixelColor(ledNo);
+  r = (oldColor & 0x00ff0000UL) >> 16;
+  g = (oldColor & 0x0000ff00UL) >> 8;
+  b = (oldColor & 0x000000ffUL);
+
+  r = (r <= 10) ? 0 : (int) r - (r * fadeValue / 256);
+  g = (g <= 10) ? 0 : (int) g - (g * fadeValue / 256);
+  b = (b <= 10) ? 0 : (int) b - (b * fadeValue / 256);
+
+  strip.setPixelColor(ledNo, r, g, b);
+}
+//===============================Meteor ENDE======================
+//===============================Rainbow==========================
+void rainbowCycle(int speedDelay)
+{
+  byte *c;
+  uint16_t i, j;
+
+  for (j = 0; j < 256 * 5; j++) { // 5 cycles of all colors on wheel
+    if (interupTrigger)
+    {
+      return;
+    }
+    for (i = 0; i < numPixel; i++) {
+      c = Wheel(((i * 256 / numPixel) + j) & 255);
+      setPixel(i, *c, *(c + 1), *(c + 2));
+    }
+    strip.show();
+    interruptedDelay(speedDelay);
+  }
+}
+
+byte* Wheel(byte WheelPos) {
+  static byte c[3];
+
+  if (WheelPos < 85) {
+    c[0] = WheelPos * 3;
+    c[1] = 255 - WheelPos * 3;
+    c[2] = 0;
+
+  } else if (WheelPos < 170) {
+    WheelPos -= 85;
+    c[0] = 255 - WheelPos * 3;
+    c[1] = 0;
+    c[2] = WheelPos * 3;
+
+  } else {
+    WheelPos -= 170;
+    c[0] = 0;
+    c[1] = WheelPos * 3;
+    c[2] = 255 - WheelPos * 3;
+  }
+  return c;
+}
+
+//=================================Rainbow ende==========================
+//=================================RGB Loop==========================
+void RGBLoop() {
+  for (int j = 0; j < 6; j++ ) {
+    // Fade IN
+    for (int k = 0; k < 256; k++) {
+      if (interupTrigger)
+      {
+        return;
+      }
+      switch (j) {
+        case 0: setAll(k, 0, 0); break;
+        case 1: setAll(0, k, 0); break;
+        case 2: setAll(0, 0, k); break;
+        case 3: setAll(k, 0, k); break;
+        case 4: setAll(k, k, 0); break;
+        case 5: setAll(0, k, k); break;
+      }
+      strip.show();
+      delay(4);
+    }
+    // Fade OUT
+    for (int k = 255; k >= 0; k--) {
+      if (interupTrigger)
+      {
+        return;
+      }
+      switch (j) {
+        case 0: setAll(k, 0, 0); break;
+        case 1: setAll(0, k, 0); break;
+        case 2: setAll(0, 0, k); break;
+        case 3: setAll(k, 0, k); break;
+        case 4: setAll(k, k, 0); break;
+        case 5: setAll(0, k, k); break;
+      }
+      strip.show();
+      delay(4);
+    }
+  }
+}
+//=================================RGB Loop ENDE==========================
+
+
+
+void kitt(byte red, byte green, byte blue, int eyeSize, int speedDelay, int returnDelay) {
+  if (interupTrigger) return;
+  kittRightToLeft(red, green, blue, eyeSize, speedDelay, returnDelay);
+  if (interupTrigger) return;
+  kittLeftToRight(red, green, blue, eyeSize, speedDelay, returnDelay);
+  if (interupTrigger) return;
+  kittOutsideToCenter(red, green, blue, eyeSize, speedDelay, returnDelay);
+  if (interupTrigger) return;
+  kittCenterToOutside(red, green, blue, eyeSize, speedDelay, returnDelay);
+  if (interupTrigger) return;
+  kittLeftToRight(red, green, blue, eyeSize, speedDelay, returnDelay);
+  if (interupTrigger) return;
+  kittRightToLeft(red, green, blue, eyeSize, speedDelay, returnDelay);
+  if (interupTrigger) return;
+  kittOutsideToCenter(red, green, blue, eyeSize, speedDelay, returnDelay);
+  if (interupTrigger) return;
+  kittCenterToOutside(red, green, blue, eyeSize, speedDelay, returnDelay);
+}
+
+void kittCenterToOutside(byte red, byte green, byte blue, int eyeSize, int speedDelay, int returnDelay) {
+  for(int i =((numPixel-eyeSize)/2); i>=0; i--) {
+    if (interupTrigger) return;
+    setAll(0,0,0);
+    setPixel(i, red/10, green/10, blue/10);
+    for(int j = 1; j <= eyeSize; j++) {
+      setPixel(i+j, red, green, blue); 
+    }
+    setPixel(i+eyeSize+1, red/10, green/10, blue/10);
+    setPixel(numPixel-i, red/10, green/10, blue/10);
+    for(int j = 1; j <= eyeSize; j++) {
+      setPixel(numPixel-i-j, red, green, blue); 
+    }
+    setPixel(numPixel-i-eyeSize-1, red/10, green/10, blue/10);
+    strip.show();
+    interruptedDelay(speedDelay);
+  }
+  interruptedDelay(returnDelay);
+}
+
+void kittOutsideToCenter(byte red, byte green, byte blue, int eyeSize, int speedDelay, int returnDelay) {
+  for(int i = 0; i<=((numPixel-eyeSize)/2); i++) {
+    if (interupTrigger) return;
+    setAll(0,0,0);
+    setPixel(i, red/10, green/10, blue/10);
+    for(int j = 1; j <= eyeSize; j++) {
+      setPixel(i+j, red, green, blue); 
+    }
+    setPixel(i+eyeSize+1, red/10, green/10, blue/10);
+    setPixel(numPixel-i, red/10, green/10, blue/10);
+    for(int j = 1; j <= eyeSize; j++) {
+      setPixel(numPixel-i-j, red, green, blue); 
+    }
+    setPixel(numPixel-i-eyeSize-1, red/10, green/10, blue/10);
+    strip.show();
+    interruptedDelay(speedDelay);
+  }
+  interruptedDelay(returnDelay);
+}
+
+void kittLeftToRight(byte red, byte green, byte blue, int eyeSize, int speedDelay, int returnDelay) {
+  for(int i = 0; i < numPixel-eyeSize-2; i++) {
+    if (interupTrigger) return;
+    setAll(0,0,0);
+    setPixel(i, red/10, green/10, blue/10);
+    for(int j = 1; j <= eyeSize; j++) {
+      setPixel(i+j, red, green, blue); 
+    }
+    setPixel(i+eyeSize+1, red/10, green/10, blue/10);
+    strip.show();
+    interruptedDelay(speedDelay);
+  }
+  interruptedDelay(returnDelay);
+}
+
+void kittRightToLeft(byte red, byte green, byte blue, int eyeSize, int speedDelay, int returnDelay) {
+  for(int i = numPixel-eyeSize-2; i > 0; i--) {
+    if (interupTrigger) return;
+    setAll(0,0,0);
+    setPixel(i, red/10, green/10, blue/10);
+    for(int j = 1; j <= eyeSize; j++) {
+      setPixel(i+j, red, green, blue); 
+    }
+    setPixel(i+eyeSize+1, red/10, green/10, blue/10);
+    strip.show();
+    interruptedDelay(speedDelay);
+  }
+  interruptedDelay(returnDelay);
+}
